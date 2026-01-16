@@ -46,18 +46,14 @@
       animation: scanline 8s linear infinite;
     }
   </style>
-<script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3"
-  }
-}
-</script>
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <div style="padding: 40px; color: #e2e8f0; font-family: system-ui; text-align: center;">
+      <p>Loading Escape the Hacker Room...</p>
+      <p style="margin-top: 20px; font-size: 12px; color: #64748b;">If this message persists, check the browser console (F12) for errors.</p>
+    </div>
+  </div>
+  <script type="module" src="/index.tsx"></script>
 </body>
 </html>

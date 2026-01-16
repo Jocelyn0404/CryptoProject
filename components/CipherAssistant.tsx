@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { geminiService } from '../services/geminiService';
+import { getGeminiService } from '../services/geminiService';
 import { Message } from '../types';
 
 interface CipherAssistantProps {
@@ -32,14 +32,26 @@ const CipherAssistant: React.FC<CipherAssistantProps> = ({
     if (!input.trim() || isLoading) return;
 
     const userMsg: Message = { role: 'user', content: input };
+    const userInput = input.trim();
     onMessageSent(userMsg);
     setInput('');
     setIsLoading(true);
 
-    const hint = await geminiService.getHint(levelContext, input, history);
-    const assistantMsg: Message = { role: 'assistant', content: hint };
-    onMessageSent(assistantMsg);
-    setIsLoading(false);
+    try {
+      const service = getGeminiService();
+      const hint = await service.getHint(levelContext, userInput, history);
+      const assistantMsg: Message = { role: 'assistant', content: hint };
+      onMessageSent(assistantMsg);
+    } catch (error) {
+      console.error("Error getting hint:", error);
+      const errorMsg: Message = { 
+        role: 'assistant', 
+        content: "I encountered an error processing your request. Please try again." 
+      };
+      onMessageSent(errorMsg);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

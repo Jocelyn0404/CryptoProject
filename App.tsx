@@ -1,9 +1,23 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { LEVELS } from './constants';
 import { GameState, Message, LevelId } from './types';
 import Terminal from './components/Terminal';
-import CipherAssistant from './components/CipherAssistant';
+
+// Lazy load CipherAssistant to prevent blocking app initialization
+const CipherAssistant = React.lazy(() => 
+  import('./components/CipherAssistant').catch(err => {
+    console.error('Failed to load CipherAssistant:', err);
+    // Return a dummy component that doesn't break rendering
+    return {
+      default: () => (
+        <div className="w-80 h-full bg-slate-900 border-l border-slate-800 flex items-center justify-center p-4 text-slate-500 text-sm">
+          AI Assistant temporarily unavailable
+        </div>
+      )
+    };
+  })
+);
 
 const App: React.FC = () => {
   const [state, setState] = useState<GameState>({
@@ -18,10 +32,14 @@ const App: React.FC = () => {
   const handleNextLevel = () => {
     setState(prev => {
       const next: LevelId = prev.currentLevel === 4 ? 'win' : ((prev.currentLevel as number) + 1) as LevelId;
+      const levelCompleteMsg: Message = { 
+        role: 'assistant', 
+        content: `Well done! Moving to Room ${next}. Concept: ${next === 'win' ? 'Freedom' : LEVELS[next].concept}` 
+      };
       return {
         ...prev,
         currentLevel: next,
-        history: [{ role: 'assistant', content: `Well done! Moving to Room ${next}. Concept: ${next === 'win' ? 'Freedom' : LEVELS[next].concept}` }]
+        history: [...prev.history, levelCompleteMsg] // Preserve chat history instead of resetting
       };
     });
   };
@@ -142,13 +160,15 @@ const App: React.FC = () => {
       </div>
 
       {/* Side AI Assistant */}
-      <CipherAssistant 
-        levelContext={levelData?.description || ''}
-        history={state.history}
-        onMessageSent={handleMessage}
-        isLoading={state.isHintLoading}
-        setIsLoading={(val) => setState(prev => ({ ...prev, isHintLoading: val }))}
-      />
+      <React.Suspense fallback={<div className="w-80 h-full bg-slate-900 border-l border-slate-800 flex items-center justify-center text-slate-500">Loading...</div>}>
+        <CipherAssistant 
+          levelContext={levelData?.description || ''}
+          history={state.history}
+          onMessageSent={handleMessage}
+          isLoading={state.isHintLoading}
+          setIsLoading={(val) => setState(prev => ({ ...prev, isHintLoading: val }))}
+        />
+      </React.Suspense>
     </div>
   );
 };
