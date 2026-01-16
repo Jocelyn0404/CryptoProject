@@ -1,0 +1,7 @@
+{
+  "name": "Escape the Hacker Room",
+  "description": "An educational cryptography escape room game where players solve puzzles to outsmart a hacker, supported by an adaptive AI assistant.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
