@@ -39,11 +39,11 @@ export class GeminiService {
   private initialized: boolean = false;
 
   constructor() {
-    // Use GEMINI_API_KEY from environment, fallback to API_KEY, or use hardcoded key
-    this.apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || 'AIzaSyA0ukdH3aphiqv_mioHqWDxuHjm-nfC8H4';
-    
-    if (!this.apiKey) {
-      console.warn("Warning: No Gemini API key provided. AI hints will not work.");
+    // Use VITE_GEMINI_API_KEY from environment (for Vite client-side apps)
+    this.apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'your_api_key_here';
+
+    if (!this.apiKey || this.apiKey === 'your_api_key_here') {
+      console.warn("Warning: No valid Gemini API key provided. AI hints will not work. Get your key from https://aistudio.google.com/app/apikey");
     }
   }
 
@@ -150,8 +150,8 @@ export class GeminiService {
       console.error("Gemini API Error:", error);
       
       // Provide more helpful error messages
-      if (error?.message?.includes('API key')) {
-        return "Authentication failed. The hacker has blocked my access key!";
+      if (error?.message?.includes('API key') || error?.message?.includes('authentication')) {
+        return "Authentication failed. The hacker has blocked my access key! Get a new API key from https://aistudio.google.com/app/apikey and add it to your .env file as VITE_GEMINI_API_KEY.";
       } else if (error?.message?.includes('quota') || error?.message?.includes('rate limit')) {
         return "Too many requests! The hacker is rate-limiting my connection. Wait a moment and try again.";
       } else if (error?.message) {
