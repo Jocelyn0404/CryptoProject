@@ -355,6 +355,7 @@ const App: React.FC = () => {
           onMessageSent={handleMessage}
           isLoading={state.isHintLoading}
           setIsLoading={(val) => setState(prev => ({ ...prev, isHintLoading: val }))}
+          isLevelComplete={state.stars > 0}
         />
       </React.Suspense>
     </div>

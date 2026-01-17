@@ -10,6 +10,7 @@ interface CipherAssistantProps {
   onMessageSent: (msg: Message) => void;
   isLoading: boolean;
   setIsLoading: (val: boolean) => void;
+  isLevelComplete?: boolean;
 }
 
 const CipherAssistant: React.FC<CipherAssistantProps> = ({ 
@@ -17,7 +18,8 @@ const CipherAssistant: React.FC<CipherAssistantProps> = ({
   history, 
   onMessageSent,
   isLoading,
-  setIsLoading
+  setIsLoading,
+  isLevelComplete = false
 }) => {
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -40,7 +42,7 @@ const CipherAssistant: React.FC<CipherAssistantProps> = ({
 
     try {
       const service = getGeminiService();
-      const hint = await service.getHint(levelContext, userInput, history);
+      const hint = await service.getHint(levelContext, userInput, history, isLevelComplete);
       const assistantMsg: Message = { role: 'assistant', content: hint };
       onMessageSent(assistantMsg);
     } catch (error) {
