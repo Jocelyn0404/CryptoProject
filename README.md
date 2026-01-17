@@ -52,11 +52,19 @@ The game begins with a short introduction that explains the storyline and basic 
    npm install
    ```
 
-3. **Set up the Gemini API Key**
+3. **Set up the Gemini API Key** ⚠️ **REQUIRED**
    
-   The game uses Google's Gemini API for the AI assistant (Cipher). You need to get a free API key from Google AI Studio:
+   The game uses Google's Gemini API for the AI assistant (Cipher). The API key is now stored securely in an environment file:
    
-   1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
+   1. Get your API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+   2. Create a `.env` file in the project root directory
+   3. Add the following line to your `.env` file:
+      ```
+      VITE_GEMINI_API_KEY=your_actual_api_key_here
+      ```
+   4. Replace `your_actual_api_key_here` with your actual API key from Google AI Studio
+   
+   **Security Note**: The `.env` file is already in `.gitignore` to prevent committing your secret key. Never share or commit your API key!
    2. Sign in with your Google account
    3. Create a new API key
    4. Create a `.env` file in the root directory:

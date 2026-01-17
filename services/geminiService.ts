@@ -9,7 +9,7 @@ const loadGoogleGenAI = async () => {
   if (GoogleGenAI) return GoogleGenAI;
   if (!importPromise) {
     importPromise = import("@google/genai")
-      .then((module) => {
+      .then((module: any) => {
         GoogleGenAI = module.GoogleGenAI || module.default?.GoogleGenAI || module.default;
         return GoogleGenAI;
       })
@@ -39,11 +39,12 @@ export class GeminiService {
   private initialized: boolean = false;
 
   constructor() {
-    // Use VITE_GEMINI_API_KEY from environment (for Vite client-side apps)
-    this.apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'your_api_key_here';
+    // Use VITE_GEMINI_API_KEY from environment file (.env)
+    // IMPORTANT: Never hardcode API keys in source code!
+    this.apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
 
-    if (!this.apiKey || this.apiKey === 'your_api_key_here') {
-      console.warn("Warning: No valid Gemini API key provided. AI hints will not work. Get your key from https://aistudio.google.com/app/apikey");
+    if (!this.apiKey || this.apiKey.trim() === '') {
+      console.warn("Warning: No Gemini API key found. Please create a .env file with VITE_GEMINI_API_KEY. Get your key from https://aistudio.google.com/app/apikey");
     }
   }
 
@@ -67,91 +68,125 @@ export class GeminiService {
 
   async getHint(levelContext: string, userMessage: string, history: Message[]): Promise<string> {
     if (!this.apiKey) {
-      return "API key not configured. Please set GEMINI_API_KEY in your environment.";
+      return "API key not configured. Please set VITE_GEMINI_API_KEY in your .env file.";
     }
 
-    // Lazy initialization
-    await this.initializeAI();
-
-    if (!this.initialized || !this.ai) {
-      return "AI service is not available. Check your API key and connection.";
+    // Validate API key format
+    if (!this.apiKey || this.apiKey.trim() === '' || !this.apiKey.startsWith('AIza')) {
+      return "Invalid or missing API key. Please check your VITE_GEMINI_API_KEY in .env file. Get your key from https://aistudio.google.com/app/apikey";
     }
 
     try {
-      // Build conversation history with proper format
-      const chatHistory = history.map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-      }));
+      // Build conversation history
+      const contents: any[] = [];
+      
+      // Add history
+      for (const msg of history) {
+        contents.push({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: msg.content }]
+        });
+      }
 
-      // Prepare the full conversation with context
-      const contents = [
-        ...chatHistory,
-        { 
-          role: 'user' as const, 
-          parts: [{ text: `CONTEXT: ${levelContext}\n\nUSER QUESTION: ${userMessage}` }] 
-        }
-      ];
+      // Add current message with context
+      const fullPrompt = `CONTEXT: ${levelContext}\n\nUSER QUESTION: ${userMessage}`;
+      contents.push({
+        role: 'user',
+        parts: [{ text: fullPrompt }]
+      });
 
-      // Generate content using the correct API structure
-      // Try multiple model names in order of preference (most stable first)
-      const modelNames = ['gemini-pro', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.5-flash'];
-      let response: any = null;
+      // Try multiple models in order of preference (using currently available models)
+      // Most stable models first - these are the most reliable Gemini models
+      const modelNames = ['gemini-1.5-flash', 'gemini-pro'];
       let lastError: any = null;
+      let lastErrorData: any = null;
 
       for (const modelName of modelNames) {
         try {
-          response = await this.ai.models.generateContent({
-            model: modelName,
-            contents: contents,
-            config: {
-              systemInstruction: SYSTEM_INSTRUCTION,
-              temperature: 0.7,
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${this.apiKey}`;
+          
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
             },
+            body: JSON.stringify({
+              contents: contents,
+              systemInstruction: {
+                parts: [{ text: SYSTEM_INSTRUCTION }]
+              },
+              generationConfig: {
+                temperature: 0.7,
+              }
+            })
           });
-          // If successful, break out of the loop
-          break;
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            // Log the actual error for debugging
+            console.warn(`Gemini API Error (${modelName}):`, data);
+            
+            lastError = new Error(data.error?.message || `API error: ${response.status}`);
+            lastErrorData = data;
+            
+            if (response.status === 401 || response.status === 403) {
+              // Authentication error - don't try other models
+              throw lastError;
+            } else if (response.status === 404) {
+              // Model not found - try next model
+              console.log(`Model ${modelName} not found, trying next...`);
+              continue;
+            } else {
+              // Other error - try next model
+              console.log(`Model ${modelName} returned error ${response.status}, trying next...`);
+              continue;
+            }
+          }
+
+          // Extract text from response
+          const responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text || 
+                              data?.text || 
+                              '';
+
+          if (!responseText || responseText.trim() === '') {
+            console.warn("Empty response from Gemini API:", data);
+            return "I'm having trouble connecting to the network... try again, recruit.";
+          }
+
+          return responseText.trim();
         } catch (error: any) {
           lastError = error;
+          
           // If it's a 404 (model not found), try the next model
-          if (error?.error?.code === 404 || error?.status === 404) {
-            console.warn(`Model ${modelName} not found, trying next...`);
+          if (error?.message?.includes('not found') || error?.message?.includes('404')) {
+            console.warn(`Model ${modelName} not available, trying next...`);
             continue;
           }
-          // For other errors, throw immediately
-          throw error;
+          
+          // For authentication errors, don't try other models
+          if (error?.message?.includes('Authentication') || error?.message?.includes('401') || error?.message?.includes('403')) {
+            throw error;
+          }
         }
       }
 
-      // If all models failed with 404, throw the last error
-      if (!response && lastError) {
+      // If all models failed, provide helpful error message
+      if (lastError) {
+        const errorMsg = lastError?.message || 'Unknown error';
+        if (errorMsg.includes('not found') || errorMsg.includes('404')) {
+          throw new Error(`All available models were not found. This might be a temporary issue. Please try again later.`);
+        }
         throw lastError;
       }
 
-      // Extract text from response - handle different response structures
-      let responseText = '';
-      if (response?.text) {
-        responseText = response.text;
-      } else if (response?.response?.text) {
-        responseText = response.response.text;
-      } else if (response?.candidates?.[0]?.content?.parts?.[0]?.text) {
-        responseText = response.candidates[0].content.parts[0].text;
-      } else if (typeof response === 'string') {
-        responseText = response;
-      }
-
-      if (!responseText || responseText.trim() === '') {
-        console.warn("Empty response from Gemini API:", response);
-        return "I'm having trouble connecting to the network... try again, recruit.";
-      }
-
-      return responseText.trim();
+      return "I'm having trouble connecting to the network... try again, recruit.";
     } catch (error: any) {
       console.error("Gemini API Error:", error);
       
-      // Provide more helpful error messages
-      if (error?.message?.includes('API key') || error?.message?.includes('authentication')) {
-        return "Authentication failed. The hacker has blocked my access key! Get a new API key from https://aistudio.google.com/app/apikey and add it to your .env file as VITE_GEMINI_API_KEY.";
+      // Provide helpful error messages
+      if (error?.message?.includes('Authentication') || error?.message?.includes('401') || error?.message?.includes('403') || error?.message?.includes('Invalid API key')) {
+        return "Authentication failed. The hacker has blocked my access key! Please:\n1. Get a new API key from https://aistudio.google.com/app/apikey\n2. Create a .env file in the project root\n3. Add: VITE_GEMINI_API_KEY=your_api_key_here\n4. Restart the dev server";
       } else if (error?.message?.includes('quota') || error?.message?.includes('rate limit')) {
         return "Too many requests! The hacker is rate-limiting my connection. Wait a moment and try again.";
       } else if (error?.message) {
